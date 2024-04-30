@@ -1,0 +1,264 @@
+---
+title: "Final_Project_RMarkdown"
+author: "Registration: 230243318"
+date: "2024-03-19"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+  pdf_document: default
+---
+
+# **The number and distribution of adult rape cases in England and Wales from 2016-2022.**
+
+## 1. Background and Research Questions
+
+For this project, I was curious as to how the number of rape cases per 100,000 people has evolved by geographical area over the years in England and Wales.Specifically, from 2016 - 2022. It would also be interesting to explore how the number of cases differ pre and post COVID-19. Therefore, the questions is:
+
+*What are the trends in adult rape offences from the year 2016 to 2022.* 
+
+## 2. Data Origins
+
+I found this data set on the official Criminal Justice System's website *(<https://criminal-justice-delivery-data-dashboards.justice.gov.uk/rape-review>)*. The data was collected by various departments such as the police, Crown Prosecution Services, the courts (HMCTS), Home Office, and Ministry of Justice.
+
+The data variables consist of the offence type, the stage the case is at (either recorded at the decision of the police, police referral, or at completion in court), the priority area (this states whether the data was recorded to improve the quality of justice, time spent on cases, increasing victim engagement, or as part of a review to better adjust the aims of the relevant departments), metric name, geographical granularity (who had jurisdiction by area), geographic area name (where the cases were recorded), date granularity (whether the data was recorded quarterly or annually), time period (when it was recorded in regard to the date granularity), the number of cases and a column of reasons for any missing data (which is empty).
+
+It is noteworthy to mention that website does not specify how the data was collected because it is collected by multiple people within the various departments, each having their own protocols. However, one can find detailed descriptions from each department in their version of a code book.
+
+## 3. A Glimpse At The Data
+
+The first step I took was to ensure that I had all the necessary packages loaded into RStudio and set my "here" function to make sure that it would be able to locate the data set.
+
+```{r setup, message=FALSE, warning=FALSE}
+# Installing the packages and defining "here"
+library(here)
+library(tidyverse)
+library(knitr)
+library(mapdata)
+library(maps)
+library(ggplot2)
+library(dplyr)
+library(shiny)
+library(leaflet)
+library(gganimate)
+library(plotly)
+```
+
+3.1  Below is a brief overview of the raw data using the head function. 
+```{r head, message=FALSE, warning=FALSE}
+# Head of raw data
+data1 <- here("data", "raw_data.csv")
+raw_data <- read.csv(data1)
+head(raw_data)
+```
+
+3.2
+
+The graph did not look good when i knitted it, so I am using this code to better fit the webpage.
+
+``` {r head_fix, message=FALSE, warning=FALSE}
+#Better fitting the head table
+raw_head <- function(raw_data) {
+  if (knitr::is_html_output()) {
+    return(knitr::kable(raw_data, format = "html", table.attr = "style='width:100%'"))
+  } else if (knitr::is_latex_output()){
+    return(knitr::kable(raw_data))
+  }
+}
+
+raw_head(head(raw_data))
+```
+
+## 4. Data Preparation
+
+4.1 For the purposes of this project, I decided to filter the data to recorded adult rape offences per 100,000 population on a rolling annual basis from the year 2016-2022. To make it easier to visualise the data on a map I also filtered it by police force area. The below head function provides a preview to the filtered data. The data that will be used for the visualisation now only include the following columns: offence type, metric name, geographic area name, time period and value.   
+
+```{r data wrangling, message=FALSE, warning=FALSE}
+# Filtering the raw data so that it only contains the variables that I am interested in.
+filtered_data <- raw_data %>% 
+  select("offence_type", "metric_name", "geographic_area_name", "time_period", "value")
+
+# Filtering further columns so that I only have specific variables.
+
+# Metric_name
+filtered_data <- filtered_data %>%
+  filter(metric_name == "Recorded adult rape offences (per 100,000 population)")
+
+# Geographic_area_name
+filtered_data <- filtered_data %>%
+  filter(geographic_area_name %in% c("Avon and Somerset", "Bedfordshire", "Cambridgeshire", "Cheshire", "City of London Police", "Cleveland", "Cumbria", "Derbyshire", "Devon and Cornwall", "Dorset", "Durham", "Dyfed-Powys", "Essex", "Gloucestershire", "Greater Manchester", "Gwent", "Hampshire", "Hertfordshire", "Humberside", "Kent", "Lancashire", "Leicestershire", "Lincolnshire", "Merseyside", "Metropolitan Police", "Norfolk", "North Wales", "North Yorkshire", "Northamptonshire", "Northumbria", "Nottinghamshire", "South Wales", "South Yorkshire", "Staffordshire", "Suffolk", "Surrey", "Sussex", "Thames Valley", "Warwickshire", "West Mercia", "West Midlands", "West Yorkshire", "Wiltshire"))
+
+# Time_period
+filtered_data <- filtered_data %>%
+  filter(time_period %in% c("Jan 2016 - Dec 2016", "Jan 2017 - Dec 2017", "Jan 2018 - Dec 2018", "Jan 2019 - Dec 2019", "Jan 2020 - Dec 2020", "Jan 2021 - Dec 2021", "Jan 2022 - Dec 2022")) 
+
+# Change the time period so it is just a numeric variable
+filtered_data <- filtered_data %>%
+  mutate(time_period = ifelse(
+    time_period == "Jan 2016 - Dec 2016", "2016",
+    ifelse(
+      time_period == "Jan 2017 - Dec 2017", "2017",
+      ifelse(
+        time_period == "Jan 2018 - Dec 2018", "2018",
+        ifelse(
+          time_period == "Jan 2019 - Dec 2019", "2019",
+          ifelse(
+            time_period == "Jan 2020 - Dec 2020", "2020",
+            ifelse(
+              time_period == "Jan 2021 - Dec 2021", "2021",
+              ifelse(
+                time_period == "Jan 2022 - Dec 2022", "2022",
+                time_period
+              )
+            )
+          )
+        )
+      )
+    )
+  ))
+
+
+head(filtered_data)
+```
+
+4.2 Again, the graph did not look great when I knitted it, so here is a code that will help it look better.
+
+``` {r head_fix2, message=FALSE, warning=FALSE}
+#Better fitting the head table
+filtered_head <- function(filtered_data) {
+  if (knitr::is_html_output()) {
+    return(knitr::kable(filtered_data, format = "html", table.attr = "style='width:100%'"))
+  } else if (knitr::is_latex_output()){
+    return(knitr::kable(raw_data))
+  }
+}
+
+filtered_head(head(filtered_data))
+```
+
+
+4.3 To be able to map my data onto a map of England and Wales I needed to get geographical coordinates for the respective police force areas. I was able to download them at *https://open-geography-portalx-ons.hub.arcgis.com/datasets/ons::police-force-areas-december-2018-generalised-clipped-boundaries-ew/explore?showTable=true*.I also had to change the names of two geographical area so they would match the names in the filtered data set.  
+
+```{r graph, message=FALSE, warning=FALSE}
+# Loading UK police force area coordinates
+police_force_areas <- here("data", "Police_Force_Areas_Dec_2018.csv")
+police_force_areas <- read.csv(police_force_areas)
+
+# Changing the way they named the London police force area to match the raw data
+police_force_areas <- police_force_areas %>%
+  mutate(geographic_area_name = ifelse(geographic_area_name == "London, City of", "City of London Police", geographic_area_name))
+
+# Changing the way they named the London police force area to match the raw data
+police_force_areas <- police_force_areas %>%
+  mutate(geographic_area_name = ifelse(geographic_area_name == "Devon & Cornwall", "Devon and Cornwall", geographic_area_name))
+
+view(police_force_areas)
+```
+
+4.4 Next, I merged my filtered data set with the coordinates by a column called "geographic_area_name" so that I would be able to plot the data points with the corresponding longitude and latitude.
+
+```{r merge, message=FALSE, warning=FALSE}
+# Merge UK districts with data set
+merged_data <- left_join(police_force_areas, filtered_data, by="geographic_area_name")
+
+view(merged_data)
+```
+
+## 5. Creating The Visulisation
+
+5.1 The first step I took was create a base map of the UK. I used the map available in the mapdata package. 
+
+```{r map, message=FALSE, warning=FALSE}
+# Load UK map
+ukmap <- map_data("world", region = "UK")
+
+ukmap <- ggplot() + 
+ geom_polygon(data = ukmap, aes(x = long, y = lat, group = group), fill = "grey", color = "black")
+
+print(ukmap)
+```
+
+5.2 Secondly, I added my data points and added a title to the colour range bar at the side of the map.
+
+```{r data, message=FALSE, warning=FALSE}
+# Adding the data points to the map
+map <- ukmap + geom_point(data = merged_data, aes(x = long, y = lat, color = value), size = 3) +
+ scale_colour_continuous(name = "Number of rape cases per 100,000 population") +
+ theme_minimal() +
+  labs(title = "The Number of Rape Cases Across England & Wales")
+
+print(map)
+```
+
+5.3 Thirdly, I wanted to change the colour of the data points and the value of the colour range bar to better distinguish the values on the map. This would make it easier to visualise the difference in the number of offences across England and Wales.
+
+```{r yaxis, message=FALSE, warning=FALSE}
+# Changing the colour of the data points
+map <- map + geom_point(data = merged_data, aes(x = long, y = lat, color = value), size = 3) +
+ scale_colour_continuous(name = "Number of rape cases per 100,000 population", low = "yellow", high = "red", limit = c(0, 350)) +
+ theme_minimal() +
+  labs(title = "The Number of Rape Cases Across England & Wales") 
+
+print(map)
+```
+
+5.4 Due to the fact that this data set does not include Scotland and leaves the top portion looking empty. I believe it would look better if I left that land area out by placing a limitation in the x and y-axis. 
+
+```{r clean up, message=FALSE, warning=FALSE}
+# Changing the the x and y axis to exclude Scotland
+map <- map +  coord_cartesian(xlim = c(-6, 3), ylim = c(50, 56))
+
+print(map) 
+```
+
+5.5 Finally, I wanted to create a graph that would be animated and interactive. The goal was to create a map where the data points would change over the years. I also wanted it to be interactive so that if someone was to hover over a particular point it would give them the geographic area name as well as the numeric value (number of offences).
+
+```{r animate, message=FALSE, warning=FALSE}
+#Animating the graph over the years
+#Creating the interactive side panel
+side_bar <- fluidPage(
+    titlePanel("The Number of Rape Cases Across England & Wales"),
+    sidebarLayout(
+        sidebarPanel(
+            selectInput("year", "Select Year:", choices = unique(merged_data$time_period))
+        ),
+        mainPanel(
+            plotOutput("map")
+        )
+    )
+)
+
+#Creating the final graph
+animated_map <- function(input, output) {
+    output$map <- renderPlot({
+        ukmap <- map_data("world", region = "UK")
+        ggplot() + 
+            geom_polygon(data = ukmap, aes(x = long, y = lat, group = group), fill = "grey", color = "black") +
+            geom_point(data = merged_data[merged_data$time_period == input$year, ],
+                       aes(x = long, y = lat, color = value), size = 3) +
+            scale_colour_continuous(name = "Number of rape cases per 100,000 population", low = "yellow", high = "red", limits = c(0, 350)) +
+            theme_minimal() +
+            labs(title = paste("Year -", input$year))
+    })
+}
+
+# Run the application 
+shinyApp(ui = side_bar, server = animated_map)
+```
+
+
+I think it is interesting to note the significant drop in offence numbers during the COVID-19 lock down period and its rapid increase hereafter.
+
+## 6. Summary 
+
+The graph was able to show the difference in adult rape offence across the five-year span. I thought it was interesting how there was such a drastic decrease in cases during the COVID-19 lockdown and such a sharp increase afterwards (especially in London). 
+
+## 7. Limitations
+
+I believe that one of the limitations to visualising the data in this way is that it was sometimes more challenging to see distinct differences in the colours of the data points because the values were so similar. 
+
+## 8. Future Directions
+
+I think one could compare these values to other countries or compare each of these geographical areas to the national averages across the years. This is also a data set that will be updated every year so it would be interesting to see how the trends change over the next few years, especially with the rise in social movements. 
