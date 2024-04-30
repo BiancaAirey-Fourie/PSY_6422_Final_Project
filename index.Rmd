@@ -3,12 +3,12 @@ title: "Final_Project_RMarkdown"
 author: "Registration: 230243318"
 date: "2024-03-19"
 output:
+  pdf_document: default
   html_document:
     toc: true
     toc_float: true
     toc_depth: 3
     code_folding: show
-  pdf_document: default
 ---
 
 # **The number and distribution of adult rape cases in England and Wales from 2016-2022.**
